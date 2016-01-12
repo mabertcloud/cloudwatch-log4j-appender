@@ -1,0 +1,25 @@
+Bundle-Name: \
+	Planon Cloud Logging Library
+
+Bundle-SymbolicName: \
+	nl.planon.cloud.aws.logging.log4jappenders
+
+Bundle-Version: \
+	1.0.0
+
+
+Bundle-ClassPath: .
+
+Export-Package:  \
+	nl.planon.cloud.aws.logging.log4jappenders.*
+	
+Import-Package:  \
+	org.apache.log4j;version="1.2.7", \
+	org.apache.log4j.spi;version="1.2.7", \
+	javax.net.*, \
+	javax.annotation.*, \
+	javax.crypto.*, \
+	javax.security.*, \
+	javax.naming.*
+	
+Fragment-Host: log4j

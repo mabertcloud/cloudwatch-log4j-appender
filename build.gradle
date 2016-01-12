@@ -1,0 +1,153 @@
+apply plugin: 'java'
+apply plugin: 'idea'
+apply plugin: 'eclipse-wtp'
+apply plugin: 'sonar-runner'
+apply plugin: 'maven-publish'
+
+
+compileJava {
+  sourceCompatibility = '1.7'
+  targetCompatibility = '1.7'
+}
+//Needed to add bnd support.... for now.
+buildscript {
+    repositories {
+        jcenter()
+        ivy {
+            url 'https://bndtools.ci.cloudbees.com/job/bnd.master/lastSuccessfulBuild/artifact/dist/bundles'
+            layout 'pattern', {
+                artifact '[module]/[artifact]-[revision].[ext]' /* OSGi repo pattern */
+            }
+        }
+    }
+    dependencies {
+        classpath 'biz.aQute.bnd:biz.aQute.bnd.gradle:latest'
+        classpath 'org.hidetake:gradle-ssh-plugin:1.1.3'
+    }
+}
+apply plugin: 'org.hidetake.ssh'
+apply plugin: 'biz.aQute.bnd.builder'
+import aQute.bnd.gradle.Bundle
+
+version = '1.0'
+group = 'nl.planon.cloud.aws'
+def localMavenRepo = 'file://' + new File(System.getProperty('user.home'), '.m2/repository').absolutePath
+def localMavenRepo_tmp = 'file://' + new File(System.getProperty('user.home'), '.m2_tmp/repository').absolutePath
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '2.4'
+}
+
+eclipse {
+    jdt {
+        //if you want to alter the java versions (by default they are configured with gradle java plugin settings):
+        targetCompatibility = 1.8
+        sourceCompatibility = 1.8
+    }
+    
+}
+
+repositories {
+    //LocalIvy Repos
+    ivy {
+        url 'http://nl-artifactory.planon-fm.com:28080/artifactory/SF_releases/'
+        layout 'maven'
+    }
+    ivy {
+        url "http://nl-artifactory.planon-fm.com:28080/artifactory/SF_third_party"
+        layout 'maven'
+    }
+    maven { url localMavenRepo }
+    
+    mavenCentral()
+    
+    maven { url "http://maven.restlet.org" }
+}
+
+dependencies {
+    // compile "org.apache.logging.log4j:log4j-core:2.5"
+    compile "log4j:apache-log4j-extras:1.2.17"
+    compile "com.amazonaws:aws-java-sdk-logs:1.10.45"
+    compile 'com.amazonaws:aws-java-sdk-cloudwatch:1.10.45'
+
+    
+
+    //compile 'javax.annotation:jsr250-api:1.0'
+
+}
+
+sonarRunner {
+    sonarProperties {
+        property "sonar.host.url", "http://sonar01:9000"
+        property "sonar.jdbc.url", "jdbc:postgresql://sonar01:5432/sonar"
+        property "sonar.jdbc.driverClassName", "org.postgresql.Driver"
+        property "sonar.jdbc.username", "sonarrunner"
+        property "sonar.jdbc.password", "pp4kris"
+    }
+}
+
+ext{
+    artBaseName = "${group}.cloudwatch"
+}
+
+task buildBnd(type: Bundle, dependsOn: ['build']) {
+    from sourceSets.main.output
+    //make the jar fat!
+    from configurations.runtime.asFileTree.files.collect { zipTree(it) }
+    bndfile = project.file("bnd.bnd")
+    sourceSet = sourceSets.main
+    baseName = artBaseName
+}
+
+task buildBndThin(type: Bundle, dependsOn: ['build']) {
+    from sourceSets.main.output
+    //make the jar fat!
+    from configurations.runtime.asFileTree.files.collect { zipTree(it) }
+    bndfile = project.file("bnd.bnd")
+    sourceSet = sourceSets.main
+    baseName = artBaseName
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId artBaseName
+            artifact buildBnd
+        }
+        mavanJar(MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url localMavenRepo
+        }
+    }
+}
+
+
+/*remotes {
+  webServer {
+        //place file server hostname or ip here
+        host = '127.0.0.1'
+        port = 11007
+        //file server user
+        user = 'mabert'
+        knownHosts = allowAnyHosts
+        //pem file
+        identity = file('K:/keys/mabert-dev.pem')
+  }
+}
+
+task deploy (dependsOn:'buildBnd')<< {
+  ssh.run {
+    session(remotes.webServer) {
+
+        put from: "${buildDir}/libs/nl.planon.cloud.aws.cloudwatch-1.0.jar", into: 'nl.planon.cloud.aws.cloudwatch-1.0.war'
+        execute 'sudo mv nl.planon.cloud.aws.cloudwatch-1.0.war /data/artifact/infra/test/nl.planon.cloud.aws.cloudwatch-1.0.jar'
+        execute 'sudo chown fswuser:fswuser /data/artifact/infra/test/nl.planon.cloud.aws.cloudwatch-1.0.jar'
+        //execute 'sudo service tomcat restart'
+    }
+  }
+}*/
+task debug(dependsOn: ['buildBnd','deploy'])
